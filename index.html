@@ -253,6 +253,13 @@ details.notes .nbody{padding:0 20px 20px;display:flex;flex-direction:column;gap:
 .gempty{font-size:.85rem;color:var(--muted)}
 .vchip{font-size:.72rem;font-weight:600;border-radius:999px;padding:1px 7px;background:var(--grid);color:var(--muted);white-space:nowrap}
 .vchip.dir{background:var(--brand-soft);color:var(--brand-ink)}
+.xbtn{font:inherit;font-size:.82rem;font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+.xbtn:hover{background:var(--grid)}
+.xbtn.strong{color:var(--brand-ink);border-color:var(--brand)}
+.xbtn:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.xbtn[disabled]{opacity:.6;cursor:progress}
+.gexp{display:inline-flex;gap:8px;flex-wrap:wrap}
+.xtoast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:.85rem;z-index:60;max-width:90vw}
 </style>
 
 <div class="wrap">
@@ -365,7 +372,7 @@ details.notes .nbody{padding:0 20px 20px;display:flex;flex-direction:column;gap:
     <section hidden class="panel" id="porgestor">
       <div class="sechead">
         <h2>Por gestor · time direto e indireto</h2>
-        <div class="seg-tog" role="group" aria-label="Ordenar gestores"><button type="button" data-gsort="pct" aria-pressed="true">Menor % primeiro</button><button type="button" data-gsort="nome" aria-pressed="false">Nome</button></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="xbtn strong" type="button" id="gxlsxAll" hidden>Planilha de todos os gestores</button><div class="seg-tog" role="group" aria-label="Ordenar gestores"><button type="button" data-gsort="pct" aria-pressed="true">Menor % primeiro</button><button type="button" data-gsort="nome" aria-pressed="false">Nome</button></div></div>
       </div>
       <span class="muted" style="font-size:.85rem;margin-top:-6px">Inclui quem responde ao gestor diretamente e todos os níveis abaixo, pela hierarquia da relação do RH de 31/10. Uma pessoa pode aparecer no time de mais de um gestor.</span>
       <div class="ggrid" id="ggrid"></div>
@@ -693,6 +700,7 @@ renderDetalhado(); drawWeekly("evoWeekly"); renderLider(); renderPessoas();
 /* ---- por gestor ---- */
 const GEST=(()=>{try{return JSON.parse(document.getElementById("gestores").textContent);}catch(e){return [];}})();
 const HAS_NAMES=P.p.some(p=>p[0]);
+let DL=null, DL_OK=false;
 let GSORT="pct"; const GOPEN={};
 function gstats(ix){const o={t:ix.length,c:0,a:0,s:0,r:0,n:0};ix.forEach(i=>{const p=P.p[i];if(isCap(p))o.c++;else if(lowConc(p))o.r++;else if(p[5]===2||p[5]===3)o.a++;else if(p[5]===4)o.s++;else o.n++;});return o;}
 function renderGestores(){
@@ -706,7 +714,7 @@ function renderGestores(){
       <div class="ghead"><div style="min-width:0"><h3>${esc(g.n)}</h3><span class="gc">${esc(g.c||"Não consta como colaborador na relação do RH")}</span></div><span class="gpct num" style="color:var(${s.t&&p>=MIN1?"--brand-ink":"--fg"})">${s.t?p1(p)+"%":"–"}</span></div>
       ${s.t?`<div class="gbar" role="img" aria-label="${esc(g.n)}: ${p1(p)}% concluído" tabindex="0" data-tip="${esc(tip)}">${seg(s.c,"--brand")}${seg(s.a,"--prog")}${seg(s.s,"--idle")}${seg(s.r,"--bad")}${seg(s.n,"--none")}<div class="btick" style="left:calc(${MIN1}% - 1px);top:-3px;bottom:-3px"></div></div>
       <div class="gstats"><span>Time <b>${fmt(s.t)}</b> · ${fmt(g.d.length)} diretos</span><span><i class="c1"></i>Concluíram <b>${fmt(s.c)}</b></span><span><i class="c3"></i>Em andamento <b>${fmt(s.a)}</b></span><span><i class="c4"></i>Sem iniciar <b>${fmt(s.s)}</b></span>${s.r?`<span><i class="c6"></i>Reprovados <b>${fmt(s.r)}</b></span>`:""}${s.n?`<span><i class="c5"></i>Não matric. <b>${fmt(s.n)}</b></span>`:""}</div>
-      ${HAS_NAMES?`<div class="gtools"><button class="more" type="button" data-gopen="${esc(key)}" aria-expanded="${!!open}">${open?"Ocultar colaboradores":"Ver colaboradores"}</button></div>`:""}
+      ${HAS_NAMES?`<div class="gtools"><button class="more" type="button" data-gopen="${esc(key)}" aria-expanded="${!!open}">${open?"Ocultar colaboradores":"Ver colaboradores"}</button><span class="gexp" ${DL_OK?"":"hidden"}><button class="xbtn" type="button" data-gpng="${esc(key)}">Imagem (PNG)</button><button class="xbtn" type="button" data-gxlsx="${esc(key)}">Planilha (Excel)</button></span></div>`:""}
       ${open?gList(g):""}`:`<p class="gempty">Nenhum colaborador vinculado a este gestor na relação do RH de 31/10.</p>`}
     </article>`;}).join("");
 }
@@ -729,6 +737,109 @@ document.getElementById("ggrid").addEventListener("click",e=>{const b=e.target.c
 document.getElementById("ggrid").addEventListener("change",e=>{const t=e.target.closest("[data-gf]");if(!t)return;const k=t.getAttribute("data-gk");GOPEN[k]=GOPEN[k]||{};GOPEN[k][t.getAttribute("data-gf")]=t.value;renderGestores();});
 document.querySelectorAll("[data-gsort]").forEach(b=>b.addEventListener("click",()=>{GSORT=b.dataset.gsort;document.querySelectorAll("[data-gsort]").forEach(x=>x.setAttribute("aria-pressed",x===b));renderGestores();}));
 renderGestores();
+
+/* ---- exportar por gestor ---- */
+const STANDALONE=!(window.claude&&typeof window.claude.use==="function");
+(async()=>{ if(STANDALONE){DL_OK=true;} else { try{DL=await window.claude.use("downloads");}catch(e){DL=null;} DL_OK=!!DL; }
+  if(DL_OK&&HAS_NAMES){document.getElementById("gxlsxAll").hidden=false; renderGestores();} })();
+function toast(t){const e=document.createElement("div");e.className="xtoast";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),3500);}
+async function saveFile(filename,blob){
+  if(STANDALONE){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);return;}
+  try{await DL.save({filename,data:blob});toast("Arquivo salvo: "+filename);}
+  catch(e){const c=e&&e.code; if(c==="declined")return; if(c==="rate_limited")toast("Já existe um download aguardando confirmação. Tente de novo em instantes.");else toast("Não foi possível salvar o arquivo neste ambiente.");}
+}
+const REFLBL=DT(CUR.data).toLocaleDateString("pt-BR");
+const slug=t=>norm(t).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+function sitTxt(p){return isCap(p)?"Concluído":lowConc(p)?"Reprovado · prazo encerrado":(p[5]===2||p[5]===3)?"Em andamento":p[5]===4?"Matriculado sem iniciar":"Não matriculado";}
+function gFull(g){const all=g.d.concat(g.i);return {...g,all,st:gstats(all)};}
+function pDate(s){if(!s)return null;const [dd,mm]=s.split("/").map(Number);return new Date(2026,mm-1,dd,12);}
+function gEvo(g){const ds=g.all.filter(i=>isCap(P.p[i])).map(i=>pDate(P.p[i][7])).filter(Boolean).sort((a,b)=>a-b);
+  const out=[];let n=0;const start=new Date(2026,7,27,12),end=DT(CUR.data);for(let t=new Date(start);t<=end;t=new Date(t.getTime()+DAY)){while(n<ds.length&&ds[n]<=t)n++;out.push([new Date(t),n]);}return out;}
+function gRows(g){return g.all.map(i=>[i,g.d.includes(i)]).sort((a,b)=>{const o=x=>{const p=P.p[x[0]];return lowConc(p)?0:p[5]===4?1:p[5]===5?2:isCap(p)?4:3;};return o(a)-o(b)||P.p[a[0]][0].localeCompare(P.p[b[0]][0],"pt-BR");});}
+/* planilha */
+let XLSXP=null;
+function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(XLSXP)return XLSXP;XLSXP=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=()=>res(window.XLSX);sc.onerror=()=>{XLSXP=null;rej(new Error("xlsx"));};document.head.appendChild(sc);});return XLSXP;}
+function sheetsFor(X,g,wb,prefix){
+  const s=g.st, need=Math.max(0,Math.ceil(s.t*MIN1/100)-s.c);
+  const res=[["Letramento em IA · Unimed Ponta Grossa"],["Gestor",g.n],["Cargo",g.c||"-"],["Dados UniEduca de",REFLBL],[],
+    ["Indicador","Valor"],["Colaboradores no time (diretos + indiretos)",s.t],["Diretos",g.d.length],["Concluíram (nota ≥ 70)",s.c],["% concluído",s.t?s.c/s.t:0],["Em andamento",s.a],["Matriculados sem iniciar",s.s],["Reprovados · prazo encerrado",s.r],["Não matriculados",s.n],["Faltam para 90%",need]];
+  const ws1=X.utils.aoa_to_sheet(res); ws1["!cols"]=[{wch:44},{wch:40}]; if(ws1["B10"])ws1["B10"].z="0.0%";
+  const ev=[["Data","Concluídos acumulados","% do time"]].concat(gEvo(g).map(([d,n])=>[d.toLocaleDateString("pt-BR"),n,s.t?n/s.t:0]));
+  const ws2=X.utils.aoa_to_sheet(ev); ws2["!cols"]=[{wch:12},{wch:22},{wch:12}]; for(let i=2;i<=ev.length;i++){const c=ws2["C"+i];if(c)c.z="0.0%";}
+  const rows=[["Colaborador","Vínculo","Líder imediato","Estabelecimento","Centro de custo","Situação","Aproveitamento (%)","Conclusão / prazo"]].concat(gRows(g).map(([i,dir])=>{const p=P.p[i];return [p[0],dir?"Direto":"Indireto",p[3],p[1],p[2],sitTxt(p),p[6]==null?"":p[6],p[7]||""];}));
+  const ws3=X.utils.aoa_to_sheet(rows); ws3["!cols"]=[{wch:38},{wch:9},{wch:34},{wch:13},{wch:34},{wch:28},{wch:12},{wch:12}]; ws3["!autofilter"]={ref:"A1:H"+rows.length};
+  const nm=t=>(prefix?prefix+" ":"")+t;
+  X.utils.book_append_sheet(wb,ws1,nm("Resumo").slice(0,31)); X.utils.book_append_sheet(wb,ws2,nm("Evolução").slice(0,31)); X.utils.book_append_sheet(wb,ws3,nm("Colaboradores").slice(0,31));
+}
+async function exportXlsx(names,btn){
+  if(btn)btn.disabled=true;
+  try{const X=await loadXLSX(); const wb=X.utils.book_new(); const gs=GEST.filter(g=>names.includes(g.n)).map(gFull);
+    if(gs.length===1){sheetsFor(X,gs[0],wb,"");}
+    else{const head=[["Gestor","Cargo","Time","Diretos","Concluíram","% concluído","Em andamento","Sem iniciar","Reprovados","Não matriculados","Faltam para 90%"]].concat(gs.map(g=>{const s=g.st;return [g.n,g.c||"-",s.t,g.d.length,s.c,s.t?s.c/s.t:0,s.a,s.s,s.r,s.n,Math.max(0,Math.ceil(s.t*MIN1/100)-s.c)];}));
+      const ws=X.utils.aoa_to_sheet([["Letramento em IA · por gestor · dados UniEduca de "+REFLBL],[]].concat(head)); ws["!cols"]=[{wch:40},{wch:36},{wch:8},{wch:8},{wch:11},{wch:12},{wch:13},{wch:11},{wch:11},{wch:15},{wch:15}];
+      for(let i=4;i<=head.length+2;i++){const c=ws["F"+i];if(c)c.z="0.0%";} X.utils.book_append_sheet(wb,ws,"Todos os gestores");
+      gs.forEach(g=>{if(!g.st.t)return;const rows=[["Colaborador","Vínculo","Líder imediato","Estabelecimento","Situação","Aproveitamento (%)","Conclusão / prazo"]].concat(gRows(g).map(([i,dir])=>{const p=P.p[i];return [p[0],dir?"Direto":"Indireto",p[3],p[1],sitTxt(p),p[6]==null?"":p[6],p[7]||""];}));
+        const w=X.utils.aoa_to_sheet([[g.n+" · "+fmt(g.st.c)+" de "+fmt(g.st.t)+" concluíram ("+p1(pct(g.st.c,g.st.t))+"%)"],[]].concat(rows)); w["!cols"]=[{wch:38},{wch:9},{wch:34},{wch:13},{wch:28},{wch:12},{wch:12}];
+        let sn=g.n.split(" ").filter(x=>x.length>2).slice(0,3).join(" ").slice(0,31); while(wb.SheetNames.includes(sn))sn=sn.slice(0,28)+"_"+wb.SheetNames.length; X.utils.book_append_sheet(wb,w,sn);});}
+    const out=X.write(wb,{bookType:"xlsx",type:"array"});
+    const fn=gs.length===1?`Letramento IA - ${gs[0].n} - ${REFLBL.replace(/\//g,"-")}.xlsx`:`Letramento IA - por gestor - ${REFLBL.replace(/\//g,"-")}.xlsx`;
+    await saveFile(fn,new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+  }catch(e){toast("Não foi possível gerar a planilha. Verifique a conexão e tente de novo.");}
+  finally{if(btn)btn.disabled=false;}
+}
+/* imagem */
+async function exportPng(name,btn){
+  if(btn)btn.disabled=true;
+  try{ try{await document.fonts.ready;}catch(e){}
+  const g=gFull(GEST.find(x=>x.n===name)), s=g.st, rows=gRows(g), ev=gEvo(g);
+  const C={bg:"#ffffff",fg:"#17251d",mu:"#5a6b61",ln:"#dbe5df",br:"#00995d",bi:"#00703f",pr:"#e3b65a",id:"#cfc6b6",no:"#ebe6dc",bad:"#c2410c",wa:"#b97a00",soft:"#e2f3eb",grid:"#e6ede9"};
+  const FD='"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif', FB='Barlow,Arial,sans-serif';
+  const W=1200, PAD=48, COLS=rows.length>60?3:rows.length>20?2:1, RH=26, colW=(W-PAD*2-(COLS-1)*24)/COLS, nRows=Math.ceil(rows.length/COLS);
+  const listTop=640, H=listTop+50+nRows*RH+70;
+  const cv=document.createElement("canvas"); const sc=2; cv.width=W*sc; cv.height=H*sc; const x=cv.getContext("2d"); x.scale(sc,sc);
+  x.fillStyle=C.bg;x.fillRect(0,0,W,H);
+  const T=(t,X,Y,f,c,al)=>{x.font=f;x.fillStyle=c;x.textAlign=al||"left";x.fillText(t,X,Y);};
+  const fit=(t,max,f)=>{x.font=f;if(x.measureText(t).width<=max)return t;while(t.length>1&&x.measureText(t+"…").width>max)t=t.slice(0,-1);return t+"…";};
+  x.fillStyle=C.br;x.fillRect(0,0,W,8);
+  T("LETRAMENTO EM IA · UNIMED PONTA GROSSA",PAD,52,`600 14px ${FB}`,C.bi);
+  T(fit(g.n,W-PAD*2-260,`700 34px ${FD}`),PAD,94,`700 34px ${FD}`,C.fg);
+  T((g.c||"")+(g.c?" · ":"")+`Time de ${fmt(s.t)} pessoas (${fmt(g.d.length)} diretos)`,PAD,124,`400 17px ${FB}`,C.mu);
+  T(`Dados UniEduca de ${REFLBL}`,W-PAD,52,`400 14px ${FB}`,C.mu,"right");
+  const pc=pct(s.c,s.t); T(p1(pc)+"%",W-PAD,108,`700 56px ${FD}`,C.fg,"right"); T("concluíram",W-PAD,130,`400 15px ${FB}`,C.mu,"right");
+  // barra
+  let bx=PAD,by=160,bw=W-PAD*2,bh=22; x.fillStyle=C.grid;x.fillRect(bx,by,bw,bh);
+  [[s.c,C.br],[s.a,C.pr],[s.s,C.id],[s.r,C.bad],[s.n,C.no]].forEach(([v,c])=>{if(!v)return;const w=bw*v/s.t;x.fillStyle=c;x.fillRect(bx,by,w,bh);bx+=w;});
+  const mx=PAD+bw*0.9;x.fillStyle=C.wa;x.fillRect(mx-1,by-6,2,bh+12);T("meta 90%",mx,by-10,`600 12px ${FB}`,C.wa,"center");
+  // legenda
+  let lx=PAD; [["Concluíram",s.c,C.br],["Em andamento",s.a,C.pr],["Sem iniciar",s.s,C.id],["Reprovados",s.r,C.bad],["Não matriculados",s.n,C.no]].forEach(([l,v,c])=>{if(!v&&l!=="Concluíram")return;x.fillStyle=c;x.fillRect(lx,208,12,12);T(`${l} `,lx+18,219,`400 15px ${FB}`,C.mu);const w1=x.measureText(l+" ").width;T(fmt(v),lx+18+w1,219,`700 15px ${FB}`,C.fg);lx+=18+w1+x.measureText(fmt(v)).width+28;});
+  T(`Faltam ${fmt(Math.max(0,Math.ceil(s.t*MIN1/100)-s.c))} conclusões para o time chegar a 90%.`,PAD,250,`600 16px ${FB}`,C.bad);
+  // evolução
+  T("Evolução · % do time que concluiu",PAD,300,`600 20px ${FD}`,C.fg);
+  const cx0=PAD+40,cy0=320,cw=W-PAD*2-60,ch=250, yMax=Math.max(8,Math.ceil(Math.max(pc,1)*1.25/4)*4);
+  const X2=i=>cx0+cw*i/Math.max(1,ev.length-1), Y2=v=>cy0+ch-ch*v/yMax;
+  x.strokeStyle=C.grid;x.lineWidth=1;for(let k=0;k<=4;k++){const v=yMax*k/4,yy=Y2(v);x.beginPath();x.moveTo(cx0,yy);x.lineTo(cx0+cw,yy);x.stroke();T(Math.round(v)+"%",cx0-8,yy+4,`400 12px ${FB}`,C.mu,"right");}
+  ev.forEach(([d],i)=>{if(d.getDate()===1||i===0){T(d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}),X2(i),cy0+ch+20,`400 12px ${FB}`,C.mu,"center");}});
+  x.beginPath();ev.forEach(([d,n],i)=>{const v=pct(n,s.t);i?x.lineTo(X2(i),Y2(v)):x.moveTo(X2(i),Y2(v));});x.lineTo(X2(ev.length-1),Y2(0));x.lineTo(X2(0),Y2(0));x.closePath();x.fillStyle="rgba(0,153,93,.12)";x.fill();
+  x.beginPath();ev.forEach(([d,n],i)=>{const v=pct(n,s.t);i?x.lineTo(X2(i),Y2(v)):x.moveTo(X2(i),Y2(v));});x.strokeStyle=C.br;x.lineWidth=3;x.stroke();
+  const lastI=ev.length-1;x.beginPath();x.arc(X2(lastI),Y2(pc),5,0,7);x.fillStyle=C.br;x.fill();T(`${fmt(s.c)} · ${p1(pc)}%`,X2(lastI)-8,Y2(pc)-12,`700 14px ${FB}`,C.fg,"right");
+  // lista
+  T(`Colaboradores (${fmt(rows.length)})`,PAD,listTop,`600 20px ${FD}`,C.fg);
+  T("Ordem: reprovados, sem iniciar, não matriculados, em andamento, concluídos · D = direto",W-PAD,listTop,`400 13px ${FB}`,C.mu,"right");
+  const colSit={"Concluído":C.br,"Em andamento":C.wa,"Matriculado sem iniciar":"#8a8172","Não matriculado":"#8a8172","Reprovado · prazo encerrado":C.bad};
+  rows.forEach(([i,dir],k)=>{const p=P.p[i],col=Math.floor(k/nRows),rw=k%nRows,X0=PAD+col*(colW+24),Y0=listTop+30+rw*RH;
+    if(rw%2===0){x.fillStyle="#f5f8f6";x.fillRect(X0-6,Y0-4,colW+12,RH);}
+    const st=sitTxt(p),short=st==="Matriculado sem iniciar"?"Sem iniciar":st==="Reprovado · prazo encerrado"?"Reprovado":st;
+    x.fillStyle=colSit[st];x.beginPath();x.arc(X0+5,Y0+9,5,0,7);x.fill();
+    const right=short+(p[7]&&!isCap(p)?" · "+p[7]:"");x.font=`400 13px ${FB}`;const rwid=x.measureText(right).width;
+    T(fit((dir?"D · ":"")+p[0],colW-rwid-30,`400 14px ${FB}`),X0+16,Y0+14,`400 14px ${FB}`,C.fg);T(right,X0+colW,Y0+14,`400 13px ${FB}`,colSit[st],"right");});
+  T("Fonte: UniEduca × relação de colaboradores do RH · concluído = nota ≥ 70",PAD,H-28,`400 13px ${FB}`,C.mu);
+  const blob=await new Promise(r=>cv.toBlob(r,"image/png"));
+  await saveFile(`Letramento IA - ${g.n} - ${REFLBL.replace(/\//g,"-")}.png`,blob);
+  }catch(e){toast("Não foi possível gerar a imagem.");}
+  finally{if(btn)btn.disabled=false;}
+}
+document.getElementById("ggrid").addEventListener("click",e=>{const a=e.target.closest("[data-gpng]"),b=e.target.closest("[data-gxlsx]");if(a)exportPng(a.getAttribute("data-gpng"),a);if(b)exportXlsx([b.getAttribute("data-gxlsx")],b);});
+document.getElementById("gxlsxAll").addEventListener("click",e=>exportXlsx(GEST.map(g=>g.n),e.currentTarget));
 
 requestAnimationFrame(()=>document.querySelectorAll(".evo-scroll").forEach(e=>{const f=e.dataset.focus;e.scrollLeft=f?Math.max(0,e.scrollWidth*f-e.clientWidth*.55):e.scrollWidth;}));
 document.getElementById("tab-detalhado").addEventListener("click",()=>requestAnimationFrame(()=>document.querySelectorAll("#detalhado .evo-scroll").forEach(e=>{e.scrollLeft=e.scrollWidth;})));
